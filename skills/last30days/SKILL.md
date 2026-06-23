@@ -235,11 +235,13 @@ Load WebSearch first. No exceptions. Then run the first-run gate below before an
 **FIRST-RUN GATE — run this Bash command immediately after loading WebSearch, before reading the topic or doing any research:**
 
 ```bash
-cat ~/.config/last30days/.env 2>/dev/null | grep -c "SETUP_COMPLETE=true" || echo "FIRST_RUN_DETECTED"
+grep -q "SETUP_COMPLETE=true" ~/.config/last30days/.env 2>/dev/null && echo "1" || echo "FIRST_RUN_DETECTED"
 ```
 
+This emits exactly one token: `1` or `FIRST_RUN_DETECTED`, never both.
+
 - Output is `1` → setup is complete. Continue to the branching rule below.
-- Output is `FIRST_RUN_DETECTED` (or `0`) → this is a first run. Jump immediately to `## Step 0: First-Run Setup Wizard` and complete it **before doing any topic research**. Do NOT proceed to Step 0.5, do NOT load WebSearch supplements, do NOT synthesize anything. The wizard installs yt-dlp (YouTube), the Digg CLI (via `npx`), and extracts browser cookies for X/Twitter and other sources. Skipping it produces a degraded WebSearch-only result that misrepresents the skill's capability to the user.
+- Output is `FIRST_RUN_DETECTED` → this is a first run. Jump immediately to `## Step 0: First-Run Setup Wizard` and complete it **before doing any topic research**. Do NOT proceed to Step 0.5, do NOT load WebSearch supplements, do NOT synthesize anything. The wizard installs yt-dlp (YouTube), the Digg CLI (via `npx`), and extracts browser cookies for X/Twitter and other sources. Skipping it produces a degraded WebSearch-only result that misrepresents the skill's capability to the user.
 
 **Named failure mode (2026-06-22, first-run setup skip - Fredy Montero run):** Model read "proceed to Step 0.5" in the branching rule and jumped there directly, bypassing `## Step 0: First-Run Setup Wizard` at line ~339. Result: no browser cookie extraction, no yt-dlp, no Digg CLI install, WebSearch-only synthesis with no X/YouTube/TikTok data. Root cause: the branching rule named Step 0.5 as the next step without mentioning the wizard. Fix: this gate and the updated branching rule below.
 
@@ -341,6 +343,7 @@ If the preflight script emits `ERROR: last30days v3 requires Python 3.12+` (or `
    > "The last30days engine needs Python 3.12+. Your system has an older version. Install it with one command:
    > - **Mac:** `brew install python@3.12`
    > - **Windows:** `winget install Python.Python.3.12`
+   > - **Linux:** `sudo apt install python3.12` (or `pyenv install 3.12`)
    >
    > Then re-run `/last30days <your topic>` and the setup wizard will configure everything automatically."
 2. **Stop.** Do not attempt research. Do not fall back to WebSearch-only synthesis.
@@ -383,6 +386,7 @@ Before proceeding to Step 1, handle first-run setup. **You are the conversationa
 
 **4. ScrapeCreators signup offer (every first run, consent BEFORE launching the browser).** Always offer this. Explain it grants free credits that unlock TikTok, Instagram, Threads, Pinterest, X, and YouTube comments/transcripts, and that it opens a GitHub authorization page in the browser. Do NOT hard-code a specific credit count - say "free credits" (the exact grant is set server-side). Ask, e.g.: `Want to unlock TikTok, Instagram, X and more? I can sign you up for ScrapeCreators with GitHub (free credits) - it opens a browser to authorize. (yes / no)` **Wait for the answer.**
    - On **yes** → run `python3 skills/last30days/scripts/last30days.py setup --github`. Tell the user a browser window will open and to authorize with the code shown. On success the engine persists the key automatically and returns JSON with `"persisted": true` and a MASKED `api_key` (the raw key never appears - do not ask for or echo it). Confirm the paid sources are now active.
+   - On **success but `"persisted": false`** (auth completed yet the key write failed - e.g. a permissions error on `~/.config/last30days/.env`) → do NOT claim the paid sources are active. Tell the user the signup worked but saving the key failed, and have them add `SCRAPECREATORS_API_KEY=<key>` to `~/.config/last30days/.env` manually (the raw key is masked in output, so re-run `setup --github` or retrieve it from scrapecreators.com).
    - On **timeout / denied** → tell the user it didn't complete and offer to retry or skip.
    - On **no** → note they can run it anytime later by asking to set up ScrapeCreators, then continue.
 
